@@ -116,6 +116,10 @@ def ETC2Run():
                 hue=hue, kind="kde")
     plt.show()
 
+
+def LinUCB(lin_gaussian_bandit, n, delta):
+    ...
+
 if __name__ == '__main__':
     algo = input("Algorithm name: ")
 

@@ -58,10 +58,37 @@ class GaussianBandit:
         return self.actual_regret
 
 
+class LinearGaussianBandit:
+
+    def __init__(self, features, theta):
+        self.features = features
+        self.theta = theta
+
+        self.gb = GaussianBandit([
+            feature.T@theta for feature in features])
+
+    def pull_repeatedly(self, a, num_reps):
+        return self.gb.pull_repeatedly(a, num_reps)
+
+    def K(self):
+        return len(self.features)
+
+    def regret(self):
+        return self.gb.regret()
+
+
 if __name__ == '__main__':
-    bernoulli_bandit = BernoulliBandit([0.1, 0.3, 0.5])
-    print(bernoulli_bandit.K())
-    print(bernoulli_bandit.pull(0))
-    print(bernoulli_bandit.pull(1))
-    print(bernoulli_bandit.pull(2))
-    print(bernoulli_bandit.regret())
+    # bernoulli_bandit = BernoulliBandit([0.1, 0.3, 0.5])
+    # print(bernoulli_bandit.K())
+    # print(bernoulli_bandit.pull(0))
+    # print(bernoulli_bandit.pull(1))
+    # print(bernoulli_bandit.pull(2))
+    # print(bernoulli_bandit.regret())
+    f1 = np.array([1, 0])
+    f2 = np.array([0, 1])
+    theta = np.array([1, 0])
+    lgb = LinearGaussianBandit([f1, f2], theta)
+    lgb.pull_repeatedly(0, 10**5)
+    print(lgb.regret())
+    lgb.pull_repeatedly(1, 10**5)
+    print(lgb.regret())
