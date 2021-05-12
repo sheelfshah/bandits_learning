@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+from copy import deepcopy as dcopy
 
 from bandits import *
 
@@ -117,6 +118,54 @@ def ETC2Run():
     plt.show()
 
 
+def UCB(gaussian_bandit, n, alpha):
+    # alpha is confidence level
+    mean_hats = np.ones(gaussian_bandit.K()) * 10**4
+    rewards = [[] for _ in range(gaussian_bandit.K())]
+    ucb_vals = dcopy(mean_hats)
+
+    for i in range(n):
+        best_arm = np.random.choice(
+            np.flatnonzero(ucb_vals == ucb_vals.max()))
+        reward = gaussian_bandit.pull(best_arm)
+        rewards[best_arm].append(reward)
+        n_arm = len(rewards[best_arm])
+        mean_hats[best_arm] = np.mean(rewards[best_arm])
+        ucb_vals[best_arm] = mean_hats[best_arm] + alpha * np.sqrt(
+            np.log(i + 1) / n_arm)
+
+    return gaussian_bandit.regret()
+
+
+def UCBRun():
+    n_vals = [100, 200, 500, 1000, 2000, 5000]
+    alpha = 2
+    delta = 0.5
+
+    etc_means = []
+    ucb_means = []
+
+    for n in n_vals:
+        n_reps = 25
+        regret_etc_sum, regret_ucb_sum = 0, 0
+
+        for _ in range(n_reps):
+            gaussian_bandit = GaussianBandit([0, 0.1, 0.2, 0.3])
+            _, regret_etc = ExploreThenCommit2(n, delta)
+            regret_ucb = UCB(gaussian_bandit, n, alpha)
+
+            regret_etc_sum += regret_etc
+            regret_ucb_sum += regret_ucb
+
+        etc_means.append(regret_etc_sum / n_reps)
+        ucb_means.append(regret_ucb / n_reps)
+
+    plt.plot(n_vals, etc_means, label="etc")
+    plt.plot(n_vals, ucb_means, label="ucb")
+    plt.legend()
+    plt.show()
+
+
 def LinUCB(lin_gaussian_bandit, n, delta):
     ...
 
@@ -128,3 +177,9 @@ if __name__ == '__main__':
 
     elif algo == "ETC2":
         ETC2Run()
+
+    elif algo == "UCB":
+        UCBRun()
+
+    else:
+        print("Invalid algo name")
