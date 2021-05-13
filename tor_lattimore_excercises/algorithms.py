@@ -120,9 +120,9 @@ def ETC2Run():
 
 def UCB(gaussian_bandit, n, alpha):
     # alpha is confidence level
-    mean_hats = np.ones(gaussian_bandit.K()) * 10**4
+    mean_hats = np.zeros(gaussian_bandit.K())
     rewards = [[] for _ in range(gaussian_bandit.K())]
-    ucb_vals = dcopy(mean_hats)
+    ucb_vals = np.ones(gaussian_bandit.K()) * 10**10
 
     for i in range(n):
         best_arm = np.random.choice(
@@ -131,26 +131,31 @@ def UCB(gaussian_bandit, n, alpha):
         rewards[best_arm].append(reward)
         n_arm = len(rewards[best_arm])
         mean_hats[best_arm] = np.mean(rewards[best_arm])
-        ucb_vals[best_arm] = mean_hats[best_arm] + alpha * np.sqrt(
-            np.log(i + 1) / n_arm)
+        for arm in range(gaussian_bandit.K()):
+            if len(rewards[arm]) != 0:
+                ucb_vals[arm] = mean_hats[arm] + alpha * np.sqrt(
+                    np.log(i + 1) / len(rewards[arm]))
+            # else ucb stays very large
 
     return gaussian_bandit.regret()
 
 
 def UCBRun():
-    n_vals = [100, 200, 500, 1000, 2000, 5000]
+    n_vals = [500, 1000, 1500, 2000, 4000, 8000]
+    # alpha = 10**5 is pure exploration
+    # alpha = 0 is greedy
     alpha = 2
-    delta = 0.5
+    delta = 0.2
 
     etc_means = []
     ucb_means = []
 
     for n in n_vals:
-        n_reps = 25
+        n_reps = 10
         regret_etc_sum, regret_ucb_sum = 0, 0
 
         for _ in range(n_reps):
-            gaussian_bandit = GaussianBandit([0, 0.1, 0.2, 0.3])
+            gaussian_bandit = GaussianBandit([0, -0.1, -0.2, -0.5, -1, -2])
             _, regret_etc = ExploreThenCommit2(n, delta)
             regret_ucb = UCB(gaussian_bandit, n, alpha)
 
@@ -166,8 +171,72 @@ def UCBRun():
     plt.show()
 
 
-def LinUCB(lin_gaussian_bandit, n, delta):
-    ...
+def LinUCB(features, theta, n, delta, lambda_reg):
+    # constant set of actions
+    # matrix inverse can be optimized using sherman-morrison formula
+    lgb = LinearGaussianBandit(features, theta)
+
+    d = len(features[0])
+    summation_AtXt = 0
+    Vt = lambda_reg * np.eye(d)
+    theta_hat_t = np.random.normal(0, size=(d, 1))
+
+    ucb = np.zeros(len(features))
+
+    for t in range(n):
+
+        root_beta_t = np.sqrt(lambda_reg) + np.sqrt(
+            2 * np.log(1 / delta) + d * np.log(1 + t / (lambda_reg * d)))
+
+        for i in range(len(ucb)):
+            a = features[i]
+            a = a.reshape(-1, 1)
+            ucb[i] = np.dot(a.T, theta_hat_t) + root_beta_t * np.sqrt(a.T @ np.linalg.pinv(Vt) @ a)
+
+        At = features[np.argmax(ucb)]
+        At = At.reshape((-1, 1))  # At is dx1
+
+        Xt = lgb.pull_repeatedly(np.argmax(ucb), 1)
+
+        # update variables
+        Vt += (At @ At.T)
+        summation_AtXt += At * Xt
+        theta_hat_t = np.linalg.pinv(Vt) @ summation_AtXt
+
+    return lgb.regret(), theta_hat_t
+
+
+def LinUCBRun():
+    diff_vals = [0.1 * i for i in range(1, 10)]
+    num_reps = 50
+    linucb_regrets = []
+    ucb_regrets = []
+
+    for diff in diff_vals:
+        linucb_reg_sum, ucb_reg_sum = 0, 0
+        for rep in range(num_reps):
+            features = [np.array([1, 0]), np.array([0, 1])]
+            theta = np.array([0, -diff])
+            n = 1000
+            delta = 1 / n
+            lambda_reg = 1e-3
+            alpha = 2
+
+            regret_lin_ucb, theta_pred = LinUCB(
+                features, theta, n, delta, lambda_reg)
+            gaussian_bandit = GaussianBandit([0, -diff])
+            regret_ucb = UCB(gaussian_bandit, n, alpha)
+
+            linucb_reg_sum += regret_lin_ucb
+            ucb_reg_sum += regret_ucb
+
+        linucb_regrets.append(linucb_reg_sum / num_reps)
+        ucb_regrets.append(ucb_reg_sum / num_reps)
+
+    plt.plot(diff_vals, linucb_regrets, label="linucb")
+    plt.plot(diff_vals, ucb_regrets, label="ucb")
+    plt.legend()
+    plt.show()
 
 if __name__ == '__main__':
     algo = input("Algorithm name: ")
@@ -180,6 +249,9 @@ if __name__ == '__main__':
 
     elif algo == "UCB":
         UCBRun()
+
+    elif algo == "LinUCB":
+        LinUCBRun()
 
     else:
         print("Invalid algo name")

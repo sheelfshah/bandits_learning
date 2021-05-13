@@ -65,7 +65,7 @@ class LinearGaussianBandit:
         self.theta = theta
 
         self.gb = GaussianBandit([
-            feature.T@theta for feature in features])
+            np.dot(feature, theta) for feature in features])
 
     def pull_repeatedly(self, a, num_reps):
         return self.gb.pull_repeatedly(a, num_reps)
